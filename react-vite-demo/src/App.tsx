@@ -1,49 +1,118 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
+import React, { useEffect, useState } from "react";
+import { LazyStore } from "@tauri-apps/plugin-store";
 import "./App.css";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+type Todo = {
+  id: string;
+  text: string;
+  completed: boolean;
+};
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
+const store = new LazyStore("todos.json");
+
+function App() {
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [text, setText] = useState("");
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    const loadTodos = async () => {
+      const saved = await store.get<Todo[]>("todos");
+      if (saved) {
+        setTodos(saved);
+      }
+      setIsLoaded(true);
+    };
+
+    loadTodos();
+  }, []);
+
+  useEffect(() => {
+    if (isLoaded) {
+      const saveTodos = async () => {
+        store.set("todos", todos);
+        store.save();
+      };
+
+      saveTodos();
+    }
+  }, [todos, isLoaded]);
+
+  function addTodo(e?: React.FormEvent) {
+    e?.preventDefault();
+    const value = text.trim();
+    if (!value) return;
+    const newTodo: Todo = {
+      id: Date.now().toString(),
+      text: value,
+      completed: false,
+    };
+    setTodos((prev) => [newTodo, ...prev]);
+    setText("");
   }
+
+  function toggleTodo(id: string) {
+    setTodos((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)),
+    );
+  }
+
+  function deleteTodo(id: string) {
+    setTodos((prev) => prev.filter((t) => t.id !== id));
+  }
+
+  const remaining = todos.filter((t) => !t.completed).length;
 
   return (
     <main className="container">
-      <h1>Welcome to Tauri + React</h1>
+      <section className="todo-app">
+        <div className="todo-header">
+          <h1>Todo — Tauri + React</h1>
+          <div className="counter">{remaining} remaining</div>
+        </div>
 
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
+        <form className="todo-form" onSubmit={addTodo}>
+          <input
+            className="todo-input"
+            placeholder="What needs to be done?"
+            value={text}
+            onChange={(e) => setText(e.currentTarget.value)}
+          />
+          <button type="submit">Add</button>
+        </form>
 
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
+        <ul className="todo-list">
+          {todos.length === 0 && (
+            <li style={{ padding: "1rem", color: "#666" }}>
+              No tasks yet — add one!
+            </li>
+          )}
+          {todos.map((todo) => (
+            <li
+              key={todo.id}
+              className={`todo-item ${todo.completed ? "completed" : ""}`}
+            >
+              <div className="left">
+                <input
+                  type="checkbox"
+                  checked={todo.completed}
+                  onChange={() => toggleTodo(todo.id)}
+                />
+                <div className="text">{todo.text}</div>
+              </div>
+              <div>
+                <button
+                  className="delete-button"
+                  onClick={() => deleteTodo(todo.id)}
+                  aria-label={`Delete ${todo.text}`}
+                >
+                  ✕
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
     </main>
   );
 }

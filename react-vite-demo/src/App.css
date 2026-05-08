@@ -114,3 +114,83 @@ button {
     background-color: #0f0f0f69;
   }
 }
+
+/* Todo app styles */
+.todo-app {
+  max-width: 720px;
+  margin: 0 auto;
+  text-align: left;
+  padding: 1rem;
+}
+.todo-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+.todo-form {
+  display: flex;
+  margin-top: 1rem;
+}
+.todo-input {
+  flex: 1;
+  margin-right: 0.5rem;
+  padding: 0.6em 1rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.08);
+  background: #fff;
+}
+.todo-list {
+  list-style: none;
+  padding: 0;
+  margin-top: 1rem;
+}
+.todo-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem;
+  background: #ffffff;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+}
+.todo-item .left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.todo-item .text {
+  font-size: 1rem;
+  word-break: break-word;
+}
+.todo-item.completed .text {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+.delete-button {
+  background: transparent;
+  border: none;
+  color: #c0392b;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1rem;
+}
+.counter {
+  margin-top: 0.1rem;
+  color: #666;
+  font-size: 0.95rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .todo-input {
+    background-color: #0f0f0f98;
+    color: #fff;
+  }
+  .todo-item {
+    background-color: #1f1f1f;
+  }
+  .delete-button {
+    color: #ffb3b3;
+  }
+}
