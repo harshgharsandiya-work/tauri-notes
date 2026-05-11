@@ -22,3 +22,5 @@ r2d2           = "0.8"
 r2d2_postgres  = "0.18"
 uuid           = { version = "1", features = ["v4"] }
 chrono         = { version = "0.4", features = ["serde"] }
+argon2         = "0.5"
+rand           = "0.8"

@@ -11,6 +11,7 @@ import React from "react";
  *   onSelectRoom  – (room) => void
  *   onDeleteRoom  – (room) => void
  *   onLeaveRoom   – (room) => void
+ *   onLogout      – () => void
  *   onOpenModal   – (modalKey: string) => void
  */
 export default function Sidebar({
@@ -22,6 +23,7 @@ export default function Sidebar({
   onSelectRoom,
   onDeleteRoom,
   onLeaveRoom,
+  onLogout,
   onOpenModal,
 }) {
   const firstChar = (str) => (str ? str[0].toUpperCase() : "?");
@@ -47,6 +49,9 @@ export default function Sidebar({
           title="Change display name"
         >
           ✏️
+        </button>
+        <button className="icon-btn" onClick={onLogout} title="Logout">
+          🚪
         </button>
       </div>
 

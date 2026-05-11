@@ -959,6 +959,40 @@ body {
   color: var(--subtext0);
 }
 
+.auth-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-toggle {
+  text-align: center;
+  font-size: 13px;
+  color: var(--subtext0);
+  margin-top: 8px;
+}
+
+.auth-toggle-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 600;
+  text-decoration: underline;
+  padding: 0;
+  font-size: 13px;
+  transition: opacity 0.12s;
+}
+
+.auth-toggle-btn:hover:not(:disabled) {
+  opacity: 0.8;
+}
+
+.auth-toggle-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Row with input + button side by side */
 .input-row {
   display: flex;

@@ -6,6 +6,9 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 use uuid::Uuid;
 use chrono::Utc;
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
+use argon2::password_hash::SaltString;
+use rand::rngs::OsRng;
 
 // ──────────────────────────────────────────
 // Connection pool
@@ -46,8 +49,10 @@ fn init_db(pool: &DbPool) -> Result<(), String> {
         .batch_execute(
             "
             CREATE TABLE IF NOT EXISTS users (
-                id   TEXT PRIMARY KEY,
-                name TEXT NOT NULL
+                id       TEXT PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                name     TEXT NOT NULL,
+                password TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS rooms (
                 id         TEXT PRIMARY KEY,
@@ -78,6 +83,12 @@ fn init_db(pool: &DbPool) -> Result<(), String> {
             "
             ALTER TABLE rooms
             ADD COLUMN IF NOT EXISTS owner_id TEXT REFERENCES users(id);
+            
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS username TEXT UNIQUE;
+            
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS password TEXT;
             ",
         )
         .map_err(|e| e.to_string())?;
@@ -106,6 +117,31 @@ fn generate_username(id: &Uuid) -> String {
     let animal = ANIMALS[(b[1] as usize) % ANIMALS.len()];
     let num    = (((b[2] as u16) << 4) | ((b[3] as u16) & 0xF)) % 100;
     format!("{}{}{}", adj, animal, num)
+}
+
+// ──────────────────────────────────────────
+// Password hashing helpers
+// ──────────────────────────────────────────
+
+fn hash_password(password: &str) -> Result<String, String> {
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    let password_hash = argon2
+        .hash_password(password.as_bytes(), &salt)
+        .map_err(|e| format!("Failed to hash password: {}", e))?
+        .to_string();
+    Ok(password_hash)
+}
+
+fn verify_password(password: &str, hash: &str) -> Result<bool, String> {
+    let parsed_hash = PasswordHash::new(hash)
+        .map_err(|e| format!("Invalid password hash: {}", e))?;
+    let argon2 = Argon2::default();
+    match argon2.verify_password(password.as_bytes(), &parsed_hash) {
+        Ok(_) => Ok(true),
+        Err(argon2::password_hash::Error::Password) => Ok(false),
+        Err(e) => Err(format!("Password verification error: {}", e)),
+    }
 }
 
 // ──────────────────────────────────────────
@@ -150,20 +186,80 @@ pub struct Message {
 // User commands
 // ──────────────────────────────────────────
 
-/// Create a new anonymous user for this session.
+/// Sign up a new user with username, password, and optional name.
 #[tauri::command]
-fn init_user(state: State<'_, AppState>) -> Result<User, String> {
+fn signup_user(
+    state:    State<'_, AppState>,
+    username: &str,
+    password: &str,
+    name:     Option<String>,
+) -> Result<User, String> {
+    if username.is_empty() {
+        return Err("Username cannot be empty".into());
+    }
+    if password.is_empty() {
+        return Err("Password cannot be empty".into());
+    }
+    if username.len() > 50 {
+        return Err("Username must be 50 characters or fewer".into());
+    }
+    if password.len() < 6 {
+        return Err("Password must be at least 6 characters".into());
+    }
+
+    let password_hash = hash_password(password)?;
     let mut client = state.pool.get().map_err(|e| e.to_string())?;
-    let id      = Uuid::new_v4();
-    let id_str  = id.to_string();
-    let name    = generate_username(&id);
+    let id = Uuid::new_v4().to_string();
+    let display_name = name.unwrap_or_else(|| generate_username(&Uuid::parse_str(&id).unwrap()));
+
     client
         .execute(
-            "INSERT INTO users (id, name) VALUES ($1, $2)",
-            &[&id_str, &name],
+            "INSERT INTO users (id, username, name, password) VALUES ($1, $2, $3, $4)",
+            &[&id, &username, &display_name, &password_hash],
+        )
+        .map_err(|e| {
+            let err_msg = e.to_string();
+            if err_msg.contains("duplicate") || err_msg.contains("UNIQUE") {
+                "Username already taken".into()
+            } else if err_msg.contains("column") {
+                format!("Database schema error - missing column: {}", err_msg)
+            } else {
+                format!("Signup failed: {}", err_msg)
+            }
+        })?;
+
+    Ok(User { id, name: display_name })
+}
+
+/// Log in a user with username and password.
+#[tauri::command]
+fn login_user(
+    state:    State<'_, AppState>,
+    username: &str,
+    password: &str,
+) -> Result<User, String> {
+    let mut client = state.pool.get().map_err(|e| e.to_string())?;
+    let row = client
+        .query_opt(
+            "SELECT id, name, password FROM users WHERE username = $1",
+            &[&username],
         )
         .map_err(|e| e.to_string())?;
-    Ok(User { id: id_str, name })
+
+    let Some(row) = row else {
+        return Err("Username or password incorrect".into());
+    };
+
+    let id: String = row.get(0);
+    let name: String = row.get(1);
+    let hash: String = row.get(2);
+
+    let is_valid = verify_password(password, &hash)?;
+    if !is_valid {
+        return Err("Username or password incorrect".into());
+    }
+
+    Ok(User { id, name })
 }
 
 /// Update the display name of an existing user.
@@ -587,7 +683,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(AppState { pool })
         .invoke_handler(tauri::generate_handler![
-            init_user,
+            signup_user,
+            login_user,
             rename_user,
             search_users,
             list_users,

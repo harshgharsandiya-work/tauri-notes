@@ -9,6 +9,7 @@ import CreateRoomModal from "./components/modals/CreateRoomModal";
 import BrowseRoomsModal from "./components/modals/BrowseRoomsModal";
 import DeleteRoomModal from "./components/modals/DeleteRoomModal";
 import LeaveRoomModal from "./components/modals/LeaveRoomModal";
+import LoginSignupModal from "./components/modals/LoginSignupModal";
 
 import "./App.css";
 
@@ -29,6 +30,7 @@ export default function App() {
   const [modal, setModal] = useState(null);
   const [deleteRoomTarget, setDeleteRoomTarget] = useState(null);
   const [leaveRoomTarget, setLeaveRoomTarget] = useState(null);
+  const [showAuthModal, setShowAuthModal] = useState(!user);
 
   // ── Refs (avoid stale closures in setInterval) ──────────────────────────
   const activeChatRef = useRef(null);
@@ -84,16 +86,7 @@ export default function App() {
       return;
     }
 
-    try {
-      const u = await invoke("init_user");
-      setUser(u);
-      userRef.current = u;
-      await Promise.all([refreshMyRooms(u.id), refreshDmPartners(u.id)]);
-      setAppReady(true);
-    } catch (err) {
-      console.error("init_app failed:", err);
-      setInitError(String(err));
-    }
+    setAppReady(true);
   }
 
   // ── Data refreshers ─────────────────────────────────────────────────────
@@ -282,6 +275,28 @@ export default function App() {
     await refreshMyRooms(user.id);
   }
 
+  // ── Authentication ─────────────────────────────────────────────────────
+  async function handleLoginSuccess(loggedInUser) {
+    setUser(loggedInUser);
+    userRef.current = loggedInUser;
+    setShowAuthModal(false);
+    await Promise.all([
+      refreshMyRooms(loggedInUser.id),
+      refreshDmPartners(loggedInUser.id),
+    ]);
+  }
+
+  function handleLogout() {
+    setUser(null);
+    userRef.current = null;
+    setActiveChat(null);
+    setMessages([]);
+    setMyRooms([]);
+    setDmPartners([]);
+    stopPolling();
+    setShowAuthModal(true);
+  }
+
   // ── Render guards ────────────────────────────────────────────────────────
   if (initError) {
     const isContextError = initError.startsWith("NOT_TAURI_CONTEXT");
@@ -340,6 +355,16 @@ export default function App() {
     );
   }
 
+  // Show auth modal if not logged in
+  if (!user) {
+    return (
+      <LoginSignupModal
+        onLoginSuccess={handleLoginSuccess}
+        onClose={() => {}} // No close option when not logged in
+      />
+    );
+  }
+
   // ── Main layout ──────────────────────────────────────────────────────────
   return (
     <div className="app">
@@ -352,6 +377,7 @@ export default function App() {
         onSelectRoom={handleSelectRoom}
         onDeleteRoom={handleDeleteRoom}
         onLeaveRoom={handleLeaveRoom}
+        onLogout={handleLogout}
         onOpenModal={setModal}
       />
 
