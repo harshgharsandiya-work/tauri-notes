@@ -34,6 +34,7 @@ export default function App() {
   const activeChatRef = useRef(null);
   const userRef = useRef(null);
   const pollRef = useRef(null);
+  const dmPollRef = useRef(null);
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -49,6 +50,25 @@ export default function App() {
     return () => stopPolling();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Start DM polling when app is ready ──────────────────────────────────
+  useEffect(() => {
+    if (!appReady || !user) return;
+
+    async function pollDmPartners() {
+      await refreshDmPartners(user.id);
+    }
+
+    pollDmPartners();
+    dmPollRef.current = setInterval(pollDmPartners, POLL_INTERVAL_MS);
+
+    return () => {
+      if (dmPollRef.current) {
+        clearInterval(dmPollRef.current);
+        dmPollRef.current = null;
+      }
+    };
+  }, [appReady, user?.id]);
 
   async function initApp() {
     // ── Guard: must run inside the Tauri webview ──────────────────────────
