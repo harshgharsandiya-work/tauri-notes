@@ -8,6 +8,7 @@ import SearchUserModal from "./components/modals/SearchUserModal";
 import CreateRoomModal from "./components/modals/CreateRoomModal";
 import BrowseRoomsModal from "./components/modals/BrowseRoomsModal";
 import DeleteRoomModal from "./components/modals/DeleteRoomModal";
+import LeaveRoomModal from "./components/modals/LeaveRoomModal";
 
 import "./App.css";
 
@@ -24,9 +25,10 @@ export default function App() {
   const [initError, setInitError] = useState("");
 
   // ── Modal state ─────────────────────────────────────────────────────────
-  // One of: null | 'rename' | 'searchUser' | 'createRoom' | 'browseRooms' | 'deleteRoom'
+  // One of: null | 'rename' | 'searchUser' | 'createRoom' | 'browseRooms' | 'deleteRoom' | 'leaveRoom'
   const [modal, setModal] = useState(null);
   const [deleteRoomTarget, setDeleteRoomTarget] = useState(null);
+  const [leaveRoomTarget, setLeaveRoomTarget] = useState(null);
 
   // ── Refs (avoid stale closures in setInterval) ──────────────────────────
   const activeChatRef = useRef(null);
@@ -217,8 +219,32 @@ export default function App() {
     setModal("deleteRoom");
   }
 
+  function handleLeaveRoom(room) {
+    setLeaveRoomTarget(room);
+    setModal("leaveRoom");
+  }
+
   async function confirmDeleteRoom(room) {
     await invoke("delete_room", {
+      roomId: room.id,
+      userId: user.id,
+    });
+
+    if (
+      activeChatRef.current?.type === "room" &&
+      activeChatRef.current.id === room.id
+    ) {
+      stopPolling();
+      activeChatRef.current = null;
+      setActiveChat(null);
+      setMessages([]);
+    }
+
+    await refreshMyRooms(user.id);
+  }
+
+  async function confirmLeaveRoom(room) {
+    await invoke("leave_room", {
       roomId: room.id,
       userId: user.id,
     });
@@ -305,6 +331,7 @@ export default function App() {
         onSelectDM={handleSelectDM}
         onSelectRoom={handleSelectRoom}
         onDeleteRoom={handleDeleteRoom}
+        onLeaveRoom={handleLeaveRoom}
         onOpenModal={setModal}
       />
 
@@ -361,6 +388,17 @@ export default function App() {
           onClose={() => {
             setModal(null);
             setDeleteRoomTarget(null);
+          }}
+        />
+      )}
+
+      {modal === "leaveRoom" && leaveRoomTarget && (
+        <LeaveRoomModal
+          room={leaveRoomTarget}
+          onConfirm={() => confirmLeaveRoom(leaveRoomTarget)}
+          onClose={() => {
+            setModal(null);
+            setLeaveRoomTarget(null);
           }}
         />
       )}

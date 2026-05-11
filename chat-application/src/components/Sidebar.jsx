@@ -10,6 +10,7 @@ import React from "react";
  *   onSelectDM    – (partner) => void
  *   onSelectRoom  – (room) => void
  *   onDeleteRoom  – (room) => void
+ *   onLeaveRoom   – (room) => void
  *   onOpenModal   – (modalKey: string) => void
  */
 export default function Sidebar({
@@ -20,6 +21,7 @@ export default function Sidebar({
   onSelectDM,
   onSelectRoom,
   onDeleteRoom,
+  onLeaveRoom,
   onOpenModal,
 }) {
   const firstChar = (str) => (str ? str[0].toUpperCase() : "?");
@@ -129,7 +131,7 @@ export default function Sidebar({
                     </span>
                     <span className="nav-item-label">{r.name}</span>
                   </button>
-                  {isOwner && (
+                  {isOwner ? (
                     <button
                       className="room-delete-btn"
                       type="button"
@@ -137,6 +139,15 @@ export default function Sidebar({
                       title="Delete room"
                     >
                       🗑️
+                    </button>
+                  ) : (
+                    <button
+                      className="room-leave-btn"
+                      type="button"
+                      onClick={() => onLeaveRoom(r)}
+                      title="Leave room"
+                    >
+                      🚪
                     </button>
                   )}
                 </div>

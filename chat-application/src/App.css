@@ -454,6 +454,31 @@ body {
   background: rgba(243, 139, 168, 0.2);
 }
 
+.room-leave-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--subtext0);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s;
+}
+
+.room-leave-btn:hover {
+  background: rgba(137, 180, 250, 0.12);
+  border-color: rgba(137, 180, 250, 0.28);
+  color: var(--accent);
+}
+
+.room-leave-btn:active {
+  background: rgba(137, 180, 250, 0.18);
+}
+
 /* DM avatar (small circular letter) */
 .dm-avatar {
   width: 24px;

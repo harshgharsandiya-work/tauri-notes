@@ -303,6 +303,47 @@ fn delete_room(
     Ok(())
 }
 
+/// Leave a room (remove membership). If the leaving user is the owner,
+/// the room's owner_id is cleared so ownership becomes empty.
+#[tauri::command]
+fn leave_room(
+    state:   State<'_, AppState>,
+    room_id: &str,
+    user_id: &str,
+) -> Result<(), String> {
+    let mut client = state.pool.get().map_err(|e| e.to_string())?;
+    let mut tx = client.transaction().map_err(|e| e.to_string())?;
+
+    let row = tx
+        .query_opt(
+            "SELECT owner_id FROM rooms WHERE id = $1",
+            &[&room_id],
+        )
+        .map_err(|e| e.to_string())?;
+
+    let Some(row) = row else {
+        return Err("Room not found".into());
+    };
+
+    let owner_id: Option<String> = row.get(0);
+    if owner_id.as_deref() == Some(user_id) {
+        tx.execute(
+            "UPDATE rooms SET owner_id = NULL WHERE id = $1",
+            &[&room_id],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    tx.execute(
+        "DELETE FROM room_members WHERE room_id = $1 AND user_id = $2",
+        &[&room_id, &user_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// Join a room; validates the code for private rooms.
 #[tauri::command]
 fn join_room(
@@ -552,6 +593,7 @@ pub fn run() {
             list_users,
             create_room,
             delete_room,
+            leave_room,
             join_room,
             list_my_rooms,
             list_all_rooms,
