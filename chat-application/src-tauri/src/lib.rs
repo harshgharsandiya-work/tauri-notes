@@ -53,7 +53,8 @@ fn init_db(pool: &DbPool) -> Result<(), String> {
                 id         TEXT PRIMARY KEY,
                 name       TEXT    NOT NULL,
                 is_private BOOLEAN NOT NULL,
-                code       TEXT
+                code       TEXT,
+                owner_id   TEXT REFERENCES users(id)
             );
             CREATE TABLE IF NOT EXISTS room_members (
                 room_id TEXT REFERENCES rooms(id),
@@ -68,6 +69,15 @@ fn init_db(pool: &DbPool) -> Result<(), String> {
                 content      TEXT NOT NULL,
                 created_at   TEXT NOT NULL
             );
+            ",
+        )
+        .map_err(|e| e.to_string())?;
+
+    client
+        .batch_execute(
+            "
+            ALTER TABLE rooms
+            ADD COLUMN IF NOT EXISTS owner_id TEXT REFERENCES users(id);
             ",
         )
         .map_err(|e| e.to_string())?;
@@ -113,6 +123,7 @@ pub struct Room {
     pub id:         String,
     pub name:       String,
     pub is_private: bool,
+    pub owner_id:   Option<String>,
 }
 
 /// Room with membership flag (used by browse-rooms list).
@@ -231,8 +242,8 @@ fn create_room(
     let rid = Uuid::new_v4().to_string();
     client
         .execute(
-            "INSERT INTO rooms (id, name, is_private, code) VALUES ($1, $2, $3, $4)",
-            &[&rid, &name, &is_private, &code],
+            "INSERT INTO rooms (id, name, is_private, code, owner_id) VALUES ($1, $2, $3, $4, $5)",
+            &[&rid, &name, &is_private, &code, &creator_id],
         )
         .map_err(|e| e.to_string())?;
     client
@@ -241,7 +252,55 @@ fn create_room(
             &[&rid, &creator_id],
         )
         .map_err(|e| e.to_string())?;
-    Ok(Room { id: rid, name: name.to_string(), is_private })
+    Ok(Room {
+        id: rid,
+        name: name.to_string(),
+        is_private,
+        owner_id: Some(creator_id.to_string()),
+    })
+}
+
+/// Delete a room created by the caller.
+#[tauri::command]
+fn delete_room(
+    state:   State<'_, AppState>,
+    room_id: &str,
+    user_id: &str,
+) -> Result<(), String> {
+    let mut client = state.pool.get().map_err(|e| e.to_string())?;
+    let mut tx = client.transaction().map_err(|e| e.to_string())?;
+
+    let row = tx
+        .query_opt(
+            "SELECT owner_id FROM rooms WHERE id = $1",
+            &[&room_id],
+        )
+        .map_err(|e| e.to_string())?;
+
+    let Some(row) = row else {
+        return Err("Room not found".into());
+    };
+
+    let owner_id: Option<String> = row.get(0);
+    if owner_id.as_deref() != Some(user_id) {
+        return Err("Only the creator can delete this room".into());
+    }
+
+    tx.execute(
+        "DELETE FROM messages WHERE room_id = $1",
+        &[&room_id],
+    )
+    .map_err(|e| e.to_string())?;
+    tx.execute(
+        "DELETE FROM room_members WHERE room_id = $1",
+        &[&room_id],
+    )
+    .map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM rooms WHERE id = $1", &[&room_id])
+        .map_err(|e| e.to_string())?;
+
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 /// Join a room; validates the code for private rooms.
@@ -282,7 +341,7 @@ fn list_my_rooms(
     let mut client = state.pool.get().map_err(|e| e.to_string())?;
     let rows = client
         .query(
-            "SELECT r.id, r.name, r.is_private \
+            "SELECT r.id, r.name, r.is_private, r.owner_id \
              FROM rooms r \
              JOIN room_members rm ON r.id = rm.room_id \
              WHERE rm.user_id = $1 \
@@ -292,7 +351,12 @@ fn list_my_rooms(
         .map_err(|e| e.to_string())?;
     Ok(rows
         .into_iter()
-        .map(|r| Room { id: r.get(0), name: r.get(1), is_private: r.get(2) })
+        .map(|r| Room {
+            id: r.get(0),
+            name: r.get(1),
+            is_private: r.get(2),
+            owner_id: r.get(3),
+        })
         .collect())
 }
 
@@ -487,6 +551,7 @@ pub fn run() {
             search_users,
             list_users,
             create_room,
+            delete_room,
             join_room,
             list_my_rooms,
             list_all_rooms,

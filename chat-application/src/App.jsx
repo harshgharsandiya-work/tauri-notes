@@ -7,6 +7,7 @@ import RenameModal from "./components/modals/RenameModal";
 import SearchUserModal from "./components/modals/SearchUserModal";
 import CreateRoomModal from "./components/modals/CreateRoomModal";
 import BrowseRoomsModal from "./components/modals/BrowseRoomsModal";
+import DeleteRoomModal from "./components/modals/DeleteRoomModal";
 
 import "./App.css";
 
@@ -23,8 +24,9 @@ export default function App() {
   const [initError, setInitError] = useState("");
 
   // ── Modal state ─────────────────────────────────────────────────────────
-  // One of: null | 'rename' | 'searchUser' | 'createRoom' | 'browseRooms'
+  // One of: null | 'rename' | 'searchUser' | 'createRoom' | 'browseRooms' | 'deleteRoom'
   const [modal, setModal] = useState(null);
+  const [deleteRoomTarget, setDeleteRoomTarget] = useState(null);
 
   // ── Refs (avoid stale closures in setInterval) ──────────────────────────
   const activeChatRef = useRef(null);
@@ -149,6 +151,7 @@ export default function App() {
       id: room.id,
       name: room.name,
       isPrivate: room.is_private,
+      ownerId: room.owner_id ?? null,
     });
   }
 
@@ -205,6 +208,31 @@ export default function App() {
       roomId: room.id,
       code: code ?? null,
     });
+    await refreshMyRooms(user.id);
+  }
+
+  // ── Room deletion ──────────────────────────────────────────────────────
+  async function handleDeleteRoom(room) {
+    setDeleteRoomTarget(room);
+    setModal("deleteRoom");
+  }
+
+  async function confirmDeleteRoom(room) {
+    await invoke("delete_room", {
+      roomId: room.id,
+      userId: user.id,
+    });
+
+    if (
+      activeChatRef.current?.type === "room" &&
+      activeChatRef.current.id === room.id
+    ) {
+      stopPolling();
+      activeChatRef.current = null;
+      setActiveChat(null);
+      setMessages([]);
+    }
+
     await refreshMyRooms(user.id);
   }
 
@@ -276,6 +304,7 @@ export default function App() {
         activeChat={activeChat}
         onSelectDM={handleSelectDM}
         onSelectRoom={handleSelectRoom}
+        onDeleteRoom={handleDeleteRoom}
         onOpenModal={setModal}
       />
 
@@ -322,6 +351,17 @@ export default function App() {
             handleSelectRoom(room);
           }}
           onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === "deleteRoom" && deleteRoomTarget && (
+        <DeleteRoomModal
+          room={deleteRoomTarget}
+          onConfirm={() => confirmDeleteRoom(deleteRoomTarget)}
+          onClose={() => {
+            setModal(null);
+            setDeleteRoomTarget(null);
+          }}
         />
       )}
     </div>

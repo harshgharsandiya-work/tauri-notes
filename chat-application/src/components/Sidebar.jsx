@@ -9,6 +9,7 @@ import React from "react";
  *   activeChat    – { type: 'dm'|'room', id, name, isPrivate } | null
  *   onSelectDM    – (partner) => void
  *   onSelectRoom  – (room) => void
+ *   onDeleteRoom  – (room) => void
  *   onOpenModal   – (modalKey: string) => void
  */
 export default function Sidebar({
@@ -18,6 +19,7 @@ export default function Sidebar({
   activeChat,
   onSelectDM,
   onSelectRoom,
+  onDeleteRoom,
   onOpenModal,
 }) {
   const firstChar = (str) => (str ? str[0].toUpperCase() : "?");
@@ -111,17 +113,33 @@ export default function Sidebar({
             {myRooms.map((r) => {
               const active =
                 activeChat?.type === "room" && activeChat.id === r.id;
+              const isOwner = r.owner_id === user?.id;
               return (
-                <button
+                <div
                   key={r.id}
-                  className={`nav-item ${active ? "active" : ""}`}
-                  onClick={() => onSelectRoom(r)}
+                  className={`nav-room-row ${active ? "active" : ""}`}
                 >
-                  <span className="nav-item-icon">
-                    {r.is_private ? "🔒" : "#"}
-                  </span>
-                  <span className="nav-item-label">{r.name}</span>
-                </button>
+                  <button
+                    className={`nav-item nav-room-select ${active ? "active" : ""}`}
+                    type="button"
+                    onClick={() => onSelectRoom(r)}
+                  >
+                    <span className="nav-item-icon">
+                      {r.is_private ? "🔒" : "#"}
+                    </span>
+                    <span className="nav-item-label">{r.name}</span>
+                  </button>
+                  {isOwner && (
+                    <button
+                      className="room-delete-btn"
+                      type="button"
+                      onClick={() => onDeleteRoom(r)}
+                      title="Delete room"
+                    >
+                      🗑️
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>
