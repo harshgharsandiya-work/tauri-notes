@@ -1,0 +1,7 @@
+[package]
+name = "z2filehandling"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+normpath = "1.5.1"
